@@ -47,7 +47,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Сайн уу 😄 Би Kaito байна. Өнөөдөр ямархуу байна?",
+      content: "Сайн уу 😄 Би Suuder байна. Өнөөдөр ямархуу байна?",
     },
   ]);
 
@@ -78,7 +78,7 @@ export default function ChatPage() {
           setMessages(
             history.map((msg: Message) => ({
               role: msg.role,
-              content: msg.content,
+              content: msg.content.replaceAll("Kaito", "Suuder"),
             }))
           );
         }
@@ -88,8 +88,7 @@ export default function ChatPage() {
 
         const latestMood = await getMood();
         setMood(latestMood.mood || "neutral");
-      } catch (error) {
-        console.log("Initial load error:", error);
+      } catch {
         router.push("/login");
       }
     }
@@ -108,8 +107,8 @@ export default function ChatPage() {
 
       const latestMood = await getMood();
       setMood(latestMood.mood || "neutral");
-    } catch (error) {
-      console.log("Side data refresh error:", error);
+    } catch {
+      console.log("Side refresh failed");
     }
   }
 
@@ -117,6 +116,7 @@ export default function ChatPage() {
     if (!input.trim() || loading) return;
 
     const userText = input.trim();
+
     setInput("");
     setLoading(true);
 
@@ -134,7 +134,8 @@ export default function ChatPage() {
 
           updated[lastIndex] = {
             ...updated[lastIndex],
-            content: updated[lastIndex].content + chunk,
+            content:
+              updated[lastIndex].content + chunk.replaceAll("Kaito", "Suuder"),
           };
 
           return updated;
@@ -142,16 +143,13 @@ export default function ChatPage() {
       });
 
       await refreshSideData();
-    } catch (error) {
-      console.log("Stream error:", error);
-
+    } catch {
       setMessages((prev) => {
         const updated = [...prev];
-        const lastIndex = updated.length - 1;
-        updated[lastIndex] = {
+        updated[updated.length - 1] = {
           role: "assistant",
           content:
-            "Уучлаарай bro 😭 Streaming дээр алдаа гарлаа. Backend эсвэл API credit шалгаарай.",
+            "Уучлаарай bro 😭 Одоогоор AI API эсвэл backend дээр асуудал гарлаа.",
         };
         return updated;
       });
@@ -161,13 +159,13 @@ export default function ChatPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#050713] text-white flex overflow-hidden relative">
+    <main className="min-h-screen bg-[#05060F] text-white flex overflow-hidden relative">
       <div className="absolute top-[-160px] left-[-160px] w-96 h-96 rounded-full bg-cyan-500/20 blur-3xl" />
-      <div className="absolute bottom-[-160px] right-[-160px] w-96 h-96 rounded-full bg-purple-500/20 blur-3xl" />
+      <div className="absolute bottom-[-160px] right-[-160px] w-96 h-96 rounded-full bg-violet-500/20 blur-3xl" />
 
       <aside className="relative z-10 hidden md:flex md:w-72 lg:w-80 border-r border-white/10 p-6 flex-col bg-white/[0.05] backdrop-blur-2xl">
-        <h1 className="text-3xl font-bold">Kaito</h1>
-        <p className="text-white/50 text-sm mt-2">Mongolian AI Companion</p>
+        <h1 className="text-3xl font-bold">Suuder AI</h1>
+        <p className="text-white/50 text-sm mt-2">Always beside you</p>
 
         <div className="mt-8 flex flex-col items-center">
           <div className="relative h-32 w-32 flex items-center justify-center">
@@ -187,18 +185,22 @@ export default function ChatPage() {
           <button className="w-full bg-white/10 rounded-2xl px-4 py-3 text-left">
             💬 Chat
           </button>
-          <button className="w-full hover:bg-white/10 rounded-2xl px-4 py-3 text-left text-white/70">
+
+          <button className="w-full hover:bg-white/10 rounded-2xl px-4 py-3 text-left text-white/70 transition">
             🧠 Memory
           </button>
-          <button className="w-full hover:bg-white/10 rounded-2xl px-4 py-3 text-left text-white/70">
-            🎙 Voice ready
+
+          <button className="w-full hover:bg-white/10 rounded-2xl px-4 py-3 text-left text-white/70 transition">
+            🎙 Voice
           </button>
-          <button className="w-full hover:bg-white/10 rounded-2xl px-4 py-3 text-left text-white/70">
+
+          <button className="w-full hover:bg-white/10 rounded-2xl px-4 py-3 text-left text-white/70 transition">
             ⚙️ Settings
           </button>
+
           <button
             onClick={logout}
-            className="w-full hover:bg-red-500/20 rounded-2xl px-4 py-3 text-left text-red-300"
+            className="w-full hover:bg-red-500/20 rounded-2xl px-4 py-3 text-left text-red-300 transition"
           >
             🚪 Logout
           </button>
@@ -206,7 +208,7 @@ export default function ChatPage() {
 
         <div className="mt-8">
           <h3 className="text-sm font-semibold text-white/70 mb-3">
-            🧠 Saved memories
+            🧠 Memories
           </h3>
 
           <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
@@ -227,7 +229,7 @@ export default function ChatPage() {
         </div>
 
         <div className="mt-auto text-xs text-white/40">
-          v0.6 streaming + glass
+          Suuder AI · MVP v0.7
         </div>
       </aside>
 
@@ -242,7 +244,7 @@ export default function ChatPage() {
             </div>
 
             <div>
-              <h2 className="font-semibold text-lg">Kaito</h2>
+              <h2 className="font-semibold text-lg">Suuder</h2>
               <p className="text-sm text-cyan-300">
                 online now · {moodText[mood]}
               </p>
@@ -289,7 +291,7 @@ export default function ChatPage() {
         <div className="border-t border-white/10 p-4 md:p-6 bg-white/[0.04] backdrop-blur-2xl">
           <div className="flex gap-3">
             <button
-              onClick={() => alert("Chimege voice дараа энд холбогдоно 🎙")}
+              onClick={() => alert("Voice feature дараа энд орно 🎙")}
               className="hidden sm:block bg-white/10 hover:bg-white/15 transition rounded-2xl px-5 py-4"
             >
               🎙
@@ -301,7 +303,7 @@ export default function ChatPage() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleSend();
               }}
-              placeholder="Kaito-д юм бич..."
+              placeholder="Suuder-д юм бич..."
               className="flex-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl px-5 py-4 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all min-w-0"
             />
 
