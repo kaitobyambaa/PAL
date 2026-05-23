@@ -19,9 +19,10 @@ app = FastAPI(title="Kaito AI Backend")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://pal-byambaa-s-projects.vercel.app",
+],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
