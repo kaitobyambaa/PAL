@@ -42,17 +42,27 @@ const moodText: Record<Mood, string> = {
   stressed: "support mode",
 };
 
-const moodStyle: Record<Mood, string> = {
-  neutral: "bg-cyan-400",
-  happy: "bg-emerald-400",
-  sad: "bg-blue-400",
-  angry: "bg-red-400",
-  stressed: "bg-purple-400",
+const moodOrb: Record<Mood, string> = {
+  neutral: "from-cyan-300 via-sky-400 to-blue-500",
+  happy: "from-emerald-300 via-cyan-300 to-teal-500",
+  sad: "from-blue-300 via-indigo-400 to-slate-600",
+  angry: "from-red-400 via-orange-400 to-pink-500",
+  stressed: "from-violet-400 via-purple-500 to-fuchsia-500",
+};
+
+const moodBg: Record<Mood, string> = {
+  neutral: "bg-cyan-500/20",
+  happy: "bg-emerald-500/20",
+  sad: "bg-blue-500/20",
+  angry: "bg-red-500/20",
+  stressed: "bg-violet-500/20",
 };
 
 export default function ChatPage() {
   const router = useRouter();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const finalCallTextRef = useRef("");
+  const recognitionRef = useRef<any>(null);
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -65,6 +75,8 @@ export default function ChatPage() {
   const [mood, setMood] = useState<Mood>("neutral");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isCalling, setIsCalling] = useState(false);
+  const [callStatus, setCallStatus] = useState("Call mode ready");
 
   const [activePanel, setActivePanel] = useState<"chat" | "memory" | "settings">(
     "chat"
@@ -92,6 +104,12 @@ export default function ChatPage() {
 
     if (!token) {
       router.push("/login");
+      return;
+    }
+
+    const onboarding = localStorage.getItem("suuder_onboarding");
+    if (!onboarding) {
+      router.push("/onboarding");
       return;
     }
 
@@ -144,14 +162,26 @@ export default function ChatPage() {
     }
   }
 
-  async function handleSend() {
-    if (!input.trim() || loading) return;
+  function speak(text: string) {
+    if (!("speechSynthesis" in window)) return;
 
-    const userText = input.trim();
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "mn-MN";
+    utterance.rate = 1;
+    utterance.pitch = 1;
+
+    window.speechSynthesis.speak(utterance);
+  }
+
+  async function sendText(userText: string, shouldSpeak = false) {
+    if (!userText.trim() || loading) return;
 
     setInput("");
     setLoading(true);
     setActivePanel("chat");
+    finalCallTextRef.current = "";
 
     setMessages((prev) => [
       ...prev,
@@ -161,6 +191,8 @@ export default function ChatPage() {
 
     try {
       await streamMessage(userText, (chunk) => {
+        finalCallTextRef.current += chunk.replaceAll("Kaito", "Suuder");
+
         setMessages((prev) => {
           const updated = [...prev];
           const lastIndex = updated.length - 1;
@@ -176,6 +208,10 @@ export default function ChatPage() {
       });
 
       await refreshSideData();
+
+      if (shouldSpeak) {
+        speak(finalCallTextRef.current);
+      }
     } catch (error) {
       console.log("Stream error:", error);
 
@@ -190,7 +226,12 @@ export default function ChatPage() {
       });
     } finally {
       setLoading(false);
+      setCallStatus("Listening...");
     }
+  }
+
+  async function handleSend() {
+    await sendText(input, false);
   }
 
   function startVoiceInput() {
@@ -220,6 +261,76 @@ export default function ChatPage() {
     recognition.start();
   }
 
+  function startCall() {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert("Call mode-д Chrome browser хэрэгтэй байна 😭");
+      return;
+    }
+
+    setIsCalling(true);
+    setCallStatus("Listening...");
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "mn-MN";
+    recognition.interimResults = false;
+    recognition.continuous = true;
+
+    recognition.onresult = async (event: any) => {
+      const last = event.results.length - 1;
+      const text = event.results[last][0].transcript;
+
+      if (!text.trim()) return;
+
+      setCallStatus("Thinking...");
+      recognition.stop();
+      await sendText(text, true);
+
+      setTimeout(() => {
+        if (isCalling || recognitionRef.current) {
+          try {
+            recognition.start();
+            setCallStatus("Listening...");
+          } catch {}
+        }
+      }, 1200);
+    };
+
+    recognition.onerror = () => {
+      setCallStatus("Mic error. Try again.");
+    };
+
+    recognition.onend = () => {
+      if (recognitionRef.current) {
+        try {
+          recognition.start();
+        } catch {}
+      }
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  }
+
+  function stopCall() {
+    setIsCalling(false);
+    setCallStatus("Call ended");
+    window.speechSynthesis?.cancel();
+
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+  }
+
+  function toggleCall() {
+    if (isCalling) stopCall();
+    else startCall();
+  }
+
   function startEditMemory(memory: Memory) {
     setEditingMemoryId(memory.id);
     setEditKey(memory.key);
@@ -234,7 +345,7 @@ export default function ChatPage() {
       await updateMemory(editingMemoryId, editKey, editValue, editImportance);
       setEditingMemoryId(null);
       await refreshSideData();
-    } catch (error) {
+    } catch {
       alert("Memory update failed 😭");
     }
   }
@@ -246,7 +357,7 @@ export default function ChatPage() {
     try {
       await deleteMemory(id);
       await refreshSideData();
-    } catch (error) {
+    } catch {
       alert("Memory delete failed 😭");
     }
   }
@@ -261,32 +372,41 @@ export default function ChatPage() {
 
       setSettings(updated);
       alert("Settings хадгалагдлаа 😄");
-    } catch (error) {
+    } catch {
       alert("Settings save failed 😭");
     }
   }
 
   return (
     <main className="min-h-screen bg-[#05060F] text-white flex overflow-hidden relative">
-      <div className="absolute top-[-160px] left-[-160px] w-96 h-96 rounded-full bg-cyan-500/20 blur-3xl" />
-      <div className="absolute bottom-[-160px] right-[-160px] w-96 h-96 rounded-full bg-violet-500/20 blur-3xl" />
+      <div
+        className={`absolute top-[-180px] left-[-180px] w-[460px] h-[460px] rounded-full ${moodBg[mood]} blur-3xl transition-all duration-700`}
+      />
+      <div
+        className={`absolute bottom-[-180px] right-[-180px] w-[460px] h-[460px] rounded-full ${moodBg[mood]} blur-3xl transition-all duration-700`}
+      />
 
       <aside className="relative z-10 hidden md:flex md:w-72 lg:w-80 border-r border-white/10 p-6 flex-col bg-white/[0.05] backdrop-blur-2xl">
         <h1 className="text-3xl font-bold">Suuder AI</h1>
         <p className="text-white/50 text-sm mt-2">Always beside you</p>
 
         <div className="mt-8 flex flex-col items-center">
-          <div className="relative h-32 w-32 flex items-center justify-center">
+          <div className="relative h-36 w-36 flex items-center justify-center">
             <div
-              className={`absolute h-24 w-24 rounded-full ${moodStyle[mood]} blur-2xl opacity-70 animate-pulse`}
+              className={`absolute h-28 w-28 rounded-full bg-gradient-to-br ${moodOrb[mood]} blur-2xl opacity-70 animate-pulse`}
             />
             <div
-              className={`relative h-20 w-20 rounded-full ${moodStyle[mood]} shadow-2xl`}
+              className={`relative h-24 w-24 rounded-full bg-gradient-to-br ${moodOrb[mood]} shadow-2xl animate-[pulse_3s_ease-in-out_infinite]`}
             />
+            <div className="absolute h-16 w-16 rounded-full bg-white/20 blur-md animate-bounce" />
           </div>
 
           <p className="text-sm text-white/50 mt-2">Current mood</p>
           <p className="text-lg font-semibold">{moodText[mood]}</p>
+
+          {isCalling && (
+            <p className="mt-3 text-xs text-cyan-300">{callStatus}</p>
+          )}
         </div>
 
         <div className="mt-8 space-y-3">
@@ -311,10 +431,14 @@ export default function ChatPage() {
           </button>
 
           <button
-            onClick={startVoiceInput}
-            className="w-full hover:bg-white/10 rounded-2xl px-4 py-3 text-left text-white/70 transition"
+            onClick={toggleCall}
+            className={`w-full rounded-2xl px-4 py-3 text-left transition ${
+              isCalling
+                ? "bg-red-500/20 text-red-200"
+                : "bg-cyan-400/15 text-cyan-200 hover:bg-cyan-400/20"
+            }`}
           >
-            🎙 Voice input
+            {isCalling ? "⏹ End call" : "📞 Call Suuder"}
           </button>
 
           <button
@@ -337,7 +461,7 @@ export default function ChatPage() {
         </div>
 
         <div className="mt-auto text-xs text-white/40">
-          Suuder AI · MVP v0.8
+          Suuder AI · call prototype
         </div>
       </aside>
 
@@ -345,21 +469,31 @@ export default function ChatPage() {
         <header className="h-20 border-b border-white/10 px-4 md:px-6 flex items-center justify-between bg-white/[0.04] backdrop-blur-2xl">
           <div className="flex items-center gap-4">
             <div className="relative">
-              <div className={`w-12 h-12 rounded-full ${moodStyle[mood]}`} />
               <div
-                className={`absolute inset-0 w-12 h-12 rounded-full ${moodStyle[mood]} blur-xl opacity-60 animate-pulse`}
+                className={`w-12 h-12 rounded-full bg-gradient-to-br ${moodOrb[mood]} animate-pulse`}
+              />
+              <div
+                className={`absolute inset-0 w-12 h-12 rounded-full bg-gradient-to-br ${moodOrb[mood]} blur-xl opacity-60 animate-pulse`}
               />
             </div>
 
             <div>
               <h2 className="font-semibold text-lg">Suuder</h2>
               <p className="text-sm text-cyan-300">
-                online now · {moodText[mood]}
+                {isCalling ? callStatus : `online now · ${moodText[mood]}`}
               </p>
             </div>
           </div>
 
           <div className="flex gap-2 md:hidden">
+            <button
+              onClick={toggleCall}
+              className={`text-xs px-3 py-2 rounded-xl ${
+                isCalling ? "bg-red-500/20 text-red-200" : "bg-cyan-400/20"
+              }`}
+            >
+              {isCalling ? "End" : "Call"}
+            </button>
             <button
               onClick={() => setActivePanel("chat")}
               className="text-xs bg-white/10 px-3 py-2 rounded-xl"
@@ -372,12 +506,6 @@ export default function ChatPage() {
             >
               Memory
             </button>
-            <button
-              onClick={() => setActivePanel("settings")}
-              className="text-xs bg-white/10 px-3 py-2 rounded-xl"
-            >
-              Settings
-            </button>
           </div>
         </header>
 
@@ -389,7 +517,7 @@ export default function ChatPage() {
                   key={index}
                   className={`flex ${
                     msg.role === "user" ? "justify-end" : "justify-start"
-                  }`}
+                  } animate-[fadeIn_0.25s_ease-out]`}
                 >
                   <div
                     className={`max-w-[88%] md:max-w-[65%] rounded-3xl px-5 py-3 leading-relaxed shadow-lg whitespace-pre-wrap ${
@@ -558,6 +686,7 @@ export default function ChatPage() {
                     <option value="funny">Funny</option>
                     <option value="motivational">Motivational</option>
                     <option value="romantic">Romantic</option>
+                    <option value="listener">Listener</option>
                   </select>
                 </div>
 
