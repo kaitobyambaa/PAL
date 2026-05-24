@@ -108,6 +108,7 @@ export default function ChatPage() {
     }
 
     const onboarding = localStorage.getItem("suuder_onboarding");
+
     if (!onboarding) {
       router.push("/onboarding");
       return;
@@ -519,33 +520,35 @@ export default function ChatPage() {
 
         {activePanel === "chat" && (
           <>
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 space-y-5">
-              {messages.map((msg, index) => (
-                <div
-                  key={index}
-                  className={`flex ${
-                    msg.role === "user" ? "justify-end" : "justify-start"
-                  } animate-[fadeIn_0.25s_ease-out]`}
-                >
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8">
+              <div className="flex min-h-full flex-col justify-end gap-5">
+                {messages.map((msg, index) => (
                   <div
-                    className={`max-w-[88%] md:max-w-[65%] rounded-3xl px-5 py-3 leading-relaxed shadow-lg whitespace-pre-wrap ${
-                      msg.role === "user"
-                        ? "bg-cyan-400 text-black shadow-cyan-500/20"
-                        : "bg-white/10 text-white border border-white/10 backdrop-blur-xl"
-                    }`}
+                    key={index}
+                    className={`flex ${
+                      msg.role === "user" ? "justify-end" : "justify-start"
+                    } animate-[fadeIn_0.25s_ease-out]`}
                   >
-                    {msg.content || (
-                      <div className="flex gap-2 py-1">
-                        <div className="w-2 h-2 rounded-full bg-cyan-300 animate-bounce"></div>
-                        <div className="w-2 h-2 rounded-full bg-cyan-300 animate-bounce [animation-delay:0.15s]"></div>
-                        <div className="w-2 h-2 rounded-full bg-cyan-300 animate-bounce [animation-delay:0.3s]"></div>
-                      </div>
-                    )}
+                    <div
+                      className={`max-w-[88%] md:max-w-[65%] rounded-3xl px-5 py-3 leading-relaxed shadow-lg whitespace-pre-wrap ${
+                        msg.role === "user"
+                          ? "bg-cyan-400 text-black shadow-cyan-500/20"
+                          : "bg-white/10 text-white border border-white/10 backdrop-blur-xl"
+                      }`}
+                    >
+                      {msg.content || (
+                        <div className="flex gap-2 py-1">
+                          <div className="w-2 h-2 rounded-full bg-cyan-300 animate-bounce"></div>
+                          <div className="w-2 h-2 rounded-full bg-cyan-300 animate-bounce [animation-delay:0.15s]"></div>
+                          <div className="w-2 h-2 rounded-full bg-cyan-300 animate-bounce [animation-delay:0.3s]"></div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
 
-              <div ref={messagesEndRef} />
+                <div ref={messagesEndRef} />
+              </div>
             </div>
 
             <div className="shrink-0 border-t border-white/10 p-4 md:p-6 bg-white/[0.04] backdrop-blur-2xl">
