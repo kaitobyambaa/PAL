@@ -191,7 +191,8 @@ export default function ChatPage() {
 
     try {
       await streamMessage(userText, (chunk) => {
-        finalCallTextRef.current += chunk.replaceAll("Kaito", "Suuder");
+        const cleanChunk = chunk.replaceAll("Kaito", "Suuder");
+        finalCallTextRef.current += cleanChunk;
 
         setMessages((prev) => {
           const updated = [...prev];
@@ -199,8 +200,7 @@ export default function ChatPage() {
 
           updated[lastIndex] = {
             ...updated[lastIndex],
-            content:
-              updated[lastIndex].content + chunk.replaceAll("Kaito", "Suuder"),
+            content: updated[lastIndex].content + cleanChunk,
           };
 
           return updated;
@@ -287,10 +287,11 @@ export default function ChatPage() {
 
       setCallStatus("Thinking...");
       recognition.stop();
+
       await sendText(text, true);
 
       setTimeout(() => {
-        if (isCalling || recognitionRef.current) {
+        if (recognitionRef.current) {
           try {
             recognition.start();
             setCallStatus("Listening...");
@@ -336,6 +337,7 @@ export default function ChatPage() {
     setEditKey(memory.key);
     setEditValue(memory.value);
     setEditImportance(memory.importance);
+    setActivePanel("memory");
   }
 
   async function saveEditedMemory() {
@@ -413,7 +415,9 @@ export default function ChatPage() {
           <button
             onClick={() => setActivePanel("chat")}
             className={`w-full rounded-2xl px-4 py-3 text-left transition ${
-              activePanel === "chat" ? "bg-white/10" : "hover:bg-white/10 text-white/70"
+              activePanel === "chat"
+                ? "bg-white/10"
+                : "hover:bg-white/10 text-white/70"
             }`}
           >
             💬 Chat
@@ -466,8 +470,8 @@ export default function ChatPage() {
       </aside>
 
       <section className="relative z-10 flex-1 flex flex-col min-w-0">
-        <header className="h-20 border-b border-white/10 px-4 md:px-6 flex items-center justify-between bg-white/[0.04] backdrop-blur-2xl">
-          <div className="flex items-center gap-4">
+        <header className="h-20 border-b border-white/10 px-3 md:px-6 flex items-center justify-between bg-white/[0.04] backdrop-blur-2xl">
+          <div className="flex items-center gap-3">
             <div className="relative">
               <div
                 className={`w-12 h-12 rounded-full bg-gradient-to-br ${moodOrb[mood]} animate-pulse`}
@@ -485,24 +489,28 @@ export default function ChatPage() {
             </div>
           </div>
 
-          <div className="flex gap-2 md:hidden">
+          <div className="flex gap-2">
             <button
               onClick={toggleCall}
-              className={`text-xs px-3 py-2 rounded-xl ${
-                isCalling ? "bg-red-500/20 text-red-200" : "bg-cyan-400/20"
+              className={`text-xs md:text-sm px-3 md:px-4 py-2 rounded-xl font-medium ${
+                isCalling
+                  ? "bg-red-500/20 text-red-200"
+                  : "bg-cyan-400/20 text-cyan-100"
               }`}
             >
-              {isCalling ? "End" : "Call"}
+              {isCalling ? "⏹ End" : "📞 Call"}
             </button>
+
             <button
               onClick={() => setActivePanel("chat")}
-              className="text-xs bg-white/10 px-3 py-2 rounded-xl"
+              className="text-xs md:hidden bg-white/10 px-3 py-2 rounded-xl"
             >
               Chat
             </button>
+
             <button
               onClick={() => setActivePanel("memory")}
-              className="text-xs bg-white/10 px-3 py-2 rounded-xl"
+              className="text-xs md:hidden bg-white/10 px-3 py-2 rounded-xl"
             >
               Memory
             </button>
