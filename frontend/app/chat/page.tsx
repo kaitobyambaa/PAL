@@ -380,7 +380,7 @@ export default function ChatPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#05060F] text-white flex overflow-hidden relative">
+    <main className="h-screen bg-[#05060F] text-white flex relative overflow-hidden">
       <div
         className={`absolute top-[-180px] left-[-180px] w-[460px] h-[460px] rounded-full ${moodBg[mood]} blur-3xl transition-all duration-700`}
       />
@@ -388,7 +388,7 @@ export default function ChatPage() {
         className={`absolute bottom-[-180px] right-[-180px] w-[460px] h-[460px] rounded-full ${moodBg[mood]} blur-3xl transition-all duration-700`}
       />
 
-      <aside className="relative z-10 hidden md:flex md:w-72 lg:w-80 border-r border-white/10 p-6 flex-col bg-white/[0.05] backdrop-blur-2xl">
+      <aside className="relative z-10 hidden md:flex md:w-72 lg:w-80 h-screen shrink-0 border-r border-white/10 p-6 flex-col bg-white/[0.05] backdrop-blur-2xl">
         <h1 className="text-3xl font-bold">Suuder AI</h1>
         <p className="text-white/50 text-sm mt-2">Always beside you</p>
 
@@ -469,10 +469,10 @@ export default function ChatPage() {
         </div>
       </aside>
 
-      <section className="relative z-10 flex-1 flex flex-col min-w-0">
-        <header className="h-20 border-b border-white/10 px-3 md:px-6 flex items-center justify-between bg-white/[0.04] backdrop-blur-2xl">
-          <div className="flex items-center gap-3">
-            <div className="relative">
+      <section className="relative z-10 flex-1 flex flex-col min-w-0 h-screen">
+        <header className="h-20 shrink-0 border-b border-white/10 px-3 md:px-6 flex items-center justify-between bg-white/[0.04] backdrop-blur-2xl">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative shrink-0">
               <div
                 className={`w-12 h-12 rounded-full bg-gradient-to-br ${moodOrb[mood]} animate-pulse`}
               />
@@ -481,15 +481,15 @@ export default function ChatPage() {
               />
             </div>
 
-            <div>
-              <h2 className="font-semibold text-lg">Suuder</h2>
-              <p className="text-sm text-cyan-300">
+            <div className="min-w-0">
+              <h2 className="font-semibold text-lg truncate">Suuder</h2>
+              <p className="text-sm text-cyan-300 truncate">
                 {isCalling ? callStatus : `online now · ${moodText[mood]}`}
               </p>
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
             <button
               onClick={toggleCall}
               className={`text-xs md:text-sm px-3 md:px-4 py-2 rounded-xl font-medium ${
@@ -519,7 +519,7 @@ export default function ChatPage() {
 
         {activePanel === "chat" && (
           <>
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-5">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 space-y-5">
               {messages.map((msg, index) => (
                 <div
                   key={index}
@@ -548,7 +548,7 @@ export default function ChatPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="border-t border-white/10 p-4 md:p-6 bg-white/[0.04] backdrop-blur-2xl">
+            <div className="shrink-0 border-t border-white/10 p-4 md:p-6 bg-white/[0.04] backdrop-blur-2xl">
               <div className="flex gap-3">
                 <button
                   onClick={startVoiceInput}
@@ -580,7 +580,7 @@ export default function ChatPage() {
         )}
 
         {activePanel === "memory" && (
-          <div className="flex-1 overflow-y-auto p-4 md:p-8">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8">
             <div className="max-w-3xl mx-auto">
               <h2 className="text-3xl font-bold">Memory</h2>
               <p className="text-white/50 mt-2">
@@ -673,7 +673,7 @@ export default function ChatPage() {
         )}
 
         {activePanel === "settings" && (
-          <div className="flex-1 overflow-y-auto p-4 md:p-8">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8">
             <div className="max-w-3xl mx-auto">
               <h2 className="text-3xl font-bold">Settings</h2>
               <p className="text-white/50 mt-2">
