@@ -7,6 +7,10 @@ import {
   getChatHistory,
   getMemories,
   getMood,
+  updateMemory,
+  deleteMemory,
+  getSettings,
+  updateSettings,
 } from "@/lib/api";
 
 type Message = {
@@ -23,6 +27,12 @@ type Memory = {
 };
 
 type Mood = "neutral" | "happy" | "sad" | "angry" | "stressed";
+
+type UserSettings = {
+  ai_style: string;
+  language_style: string;
+  theme: string;
+};
 
 const moodText: Record<Mood, string> = {
   neutral: "calm",
@@ -56,6 +66,21 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const [activePanel, setActivePanel] = useState<"chat" | "memory" | "settings">(
+    "chat"
+  );
+
+  const [settings, setSettings] = useState<UserSettings>({
+    ai_style: "calm",
+    language_style: "natural",
+    theme: "dark",
+  });
+
+  const [editingMemoryId, setEditingMemoryId] = useState<number | null>(null);
+  const [editKey, setEditKey] = useState("");
+  const [editValue, setEditValue] = useState("");
+  const [editImportance, setEditImportance] = useState(2);
+
   function logout() {
     localStorage.removeItem("kaito_token");
     localStorage.removeItem("kaito_user");
@@ -88,7 +113,11 @@ export default function ChatPage() {
 
         const latestMood = await getMood();
         setMood(latestMood.mood || "neutral");
-      } catch {
+
+        const savedSettings = await getSettings();
+        setSettings(savedSettings);
+      } catch (error) {
+        console.log("Initial load error:", error);
         router.push("/login");
       }
     }
@@ -107,8 +136,11 @@ export default function ChatPage() {
 
       const latestMood = await getMood();
       setMood(latestMood.mood || "neutral");
-    } catch {
-      console.log("Side refresh failed");
+
+      const savedSettings = await getSettings();
+      setSettings(savedSettings);
+    } catch (error) {
+      console.log("Side refresh failed:", error);
     }
   }
 
@@ -119,6 +151,7 @@ export default function ChatPage() {
 
     setInput("");
     setLoading(true);
+    setActivePanel("chat");
 
     setMessages((prev) => [
       ...prev,
@@ -143,7 +176,9 @@ export default function ChatPage() {
       });
 
       await refreshSideData();
-    } catch {
+    } catch (error) {
+      console.log("Stream error:", error);
+
       setMessages((prev) => {
         const updated = [...prev];
         updated[updated.length - 1] = {
@@ -155,6 +190,79 @@ export default function ChatPage() {
       });
     } finally {
       setLoading(false);
+    }
+  }
+
+  function startVoiceInput() {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert("Энэ browser voice input дэмжихгүй байна 😭 Chrome ашиглаарай.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "mn-MN";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onresult = (event: any) => {
+      const text = event.results[0][0].transcript;
+      setInput(text);
+    };
+
+    recognition.onerror = () => {
+      alert("Voice input дээр алдаа гарлаа 😭");
+    };
+
+    recognition.start();
+  }
+
+  function startEditMemory(memory: Memory) {
+    setEditingMemoryId(memory.id);
+    setEditKey(memory.key);
+    setEditValue(memory.value);
+    setEditImportance(memory.importance);
+  }
+
+  async function saveEditedMemory() {
+    if (!editingMemoryId) return;
+
+    try {
+      await updateMemory(editingMemoryId, editKey, editValue, editImportance);
+      setEditingMemoryId(null);
+      await refreshSideData();
+    } catch (error) {
+      alert("Memory update failed 😭");
+    }
+  }
+
+  async function removeMemory(id: number) {
+    const ok = confirm("Энэ memory-г устгах уу?");
+    if (!ok) return;
+
+    try {
+      await deleteMemory(id);
+      await refreshSideData();
+    } catch (error) {
+      alert("Memory delete failed 😭");
+    }
+  }
+
+  async function saveSettings() {
+    try {
+      const updated = await updateSettings(
+        settings.ai_style,
+        settings.language_style,
+        settings.theme
+      );
+
+      setSettings(updated);
+      alert("Settings хадгалагдлаа 😄");
+    } catch (error) {
+      alert("Settings save failed 😭");
     }
   }
 
@@ -182,19 +290,41 @@ export default function ChatPage() {
         </div>
 
         <div className="mt-8 space-y-3">
-          <button className="w-full bg-white/10 rounded-2xl px-4 py-3 text-left">
+          <button
+            onClick={() => setActivePanel("chat")}
+            className={`w-full rounded-2xl px-4 py-3 text-left transition ${
+              activePanel === "chat" ? "bg-white/10" : "hover:bg-white/10 text-white/70"
+            }`}
+          >
             💬 Chat
           </button>
 
-          <button className="w-full hover:bg-white/10 rounded-2xl px-4 py-3 text-left text-white/70 transition">
+          <button
+            onClick={() => setActivePanel("memory")}
+            className={`w-full rounded-2xl px-4 py-3 text-left transition ${
+              activePanel === "memory"
+                ? "bg-white/10"
+                : "hover:bg-white/10 text-white/70"
+            }`}
+          >
             🧠 Memory
           </button>
 
-          <button className="w-full hover:bg-white/10 rounded-2xl px-4 py-3 text-left text-white/70 transition">
-            🎙 Voice
+          <button
+            onClick={startVoiceInput}
+            className="w-full hover:bg-white/10 rounded-2xl px-4 py-3 text-left text-white/70 transition"
+          >
+            🎙 Voice input
           </button>
 
-          <button className="w-full hover:bg-white/10 rounded-2xl px-4 py-3 text-left text-white/70 transition">
+          <button
+            onClick={() => setActivePanel("settings")}
+            className={`w-full rounded-2xl px-4 py-3 text-left transition ${
+              activePanel === "settings"
+                ? "bg-white/10"
+                : "hover:bg-white/10 text-white/70"
+            }`}
+          >
             ⚙️ Settings
           </button>
 
@@ -206,30 +336,8 @@ export default function ChatPage() {
           </button>
         </div>
 
-        <div className="mt-8">
-          <h3 className="text-sm font-semibold text-white/70 mb-3">
-            🧠 Memories
-          </h3>
-
-          <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
-            {memories.length === 0 ? (
-              <p className="text-sm text-white/40">Одоогоор memory байхгүй.</p>
-            ) : (
-              memories.map((memory) => (
-                <div
-                  key={memory.id}
-                  className="bg-white/10 border border-white/10 rounded-2xl p-3"
-                >
-                  <p className="text-xs text-cyan-300">{memory.key}</p>
-                  <p className="text-sm text-white/80 mt-1">{memory.value}</p>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
         <div className="mt-auto text-xs text-white/40">
-          Suuder AI · MVP v0.7
+          Suuder AI · MVP v0.8
         </div>
       </aside>
 
@@ -251,71 +359,253 @@ export default function ChatPage() {
             </div>
           </div>
 
-          <button
-            onClick={logout}
-            className="md:hidden text-sm text-red-300 bg-red-500/10 px-4 py-2 rounded-xl"
-          >
-            Logout
-          </button>
+          <div className="flex gap-2 md:hidden">
+            <button
+              onClick={() => setActivePanel("chat")}
+              className="text-xs bg-white/10 px-3 py-2 rounded-xl"
+            >
+              Chat
+            </button>
+            <button
+              onClick={() => setActivePanel("memory")}
+              className="text-xs bg-white/10 px-3 py-2 rounded-xl"
+            >
+              Memory
+            </button>
+            <button
+              onClick={() => setActivePanel("settings")}
+              className="text-xs bg-white/10 px-3 py-2 rounded-xl"
+            >
+              Settings
+            </button>
+          </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-5">
-          {messages.map((msg, index) => (
-            <div
-              key={index}
-              className={`flex ${
-                msg.role === "user" ? "justify-end" : "justify-start"
-              }`}
-            >
-              <div
-                className={`max-w-[88%] md:max-w-[65%] rounded-3xl px-5 py-3 leading-relaxed shadow-lg whitespace-pre-wrap ${
-                  msg.role === "user"
-                    ? "bg-cyan-400 text-black shadow-cyan-500/20"
-                    : "bg-white/10 text-white border border-white/10 backdrop-blur-xl"
-                }`}
-              >
-                {msg.content || (
-                  <div className="flex gap-2 py-1">
-                    <div className="w-2 h-2 rounded-full bg-cyan-300 animate-bounce"></div>
-                    <div className="w-2 h-2 rounded-full bg-cyan-300 animate-bounce [animation-delay:0.15s]"></div>
-                    <div className="w-2 h-2 rounded-full bg-cyan-300 animate-bounce [animation-delay:0.3s]"></div>
+        {activePanel === "chat" && (
+          <>
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-5">
+              {messages.map((msg, index) => (
+                <div
+                  key={index}
+                  className={`flex ${
+                    msg.role === "user" ? "justify-end" : "justify-start"
+                  }`}
+                >
+                  <div
+                    className={`max-w-[88%] md:max-w-[65%] rounded-3xl px-5 py-3 leading-relaxed shadow-lg whitespace-pre-wrap ${
+                      msg.role === "user"
+                        ? "bg-cyan-400 text-black shadow-cyan-500/20"
+                        : "bg-white/10 text-white border border-white/10 backdrop-blur-xl"
+                    }`}
+                  >
+                    {msg.content || (
+                      <div className="flex gap-2 py-1">
+                        <div className="w-2 h-2 rounded-full bg-cyan-300 animate-bounce"></div>
+                        <div className="w-2 h-2 rounded-full bg-cyan-300 animate-bounce [animation-delay:0.15s]"></div>
+                        <div className="w-2 h-2 rounded-full bg-cyan-300 animate-bounce [animation-delay:0.3s]"></div>
+                      </div>
+                    )}
                   </div>
+                </div>
+              ))}
+
+              <div ref={messagesEndRef} />
+            </div>
+
+            <div className="border-t border-white/10 p-4 md:p-6 bg-white/[0.04] backdrop-blur-2xl">
+              <div className="flex gap-3">
+                <button
+                  onClick={startVoiceInput}
+                  className="bg-white/10 hover:bg-white/15 transition rounded-2xl px-5 py-4"
+                >
+                  🎙
+                </button>
+
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSend();
+                  }}
+                  placeholder="Suuder-д юм бич..."
+                  className="flex-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl px-5 py-4 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all min-w-0"
+                />
+
+                <button
+                  onClick={handleSend}
+                  disabled={loading}
+                  className="bg-cyan-400 hover:bg-cyan-300 transition-all text-black rounded-2xl px-5 md:px-6 py-4 font-semibold disabled:opacity-50 shadow-lg shadow-cyan-500/20"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {activePanel === "memory" && (
+          <div className="flex-1 overflow-y-auto p-4 md:p-8">
+            <div className="max-w-3xl mx-auto">
+              <h2 className="text-3xl font-bold">Memory</h2>
+              <p className="text-white/50 mt-2">
+                Suuder чиний тухай санаж байгаа зүйлс.
+              </p>
+
+              <div className="mt-8 space-y-4">
+                {memories.length === 0 ? (
+                  <div className="bg-white/10 border border-white/10 rounded-3xl p-6 text-white/50">
+                    Одоогоор memory байхгүй.
+                  </div>
+                ) : (
+                  memories.map((memory) => (
+                    <div
+                      key={memory.id}
+                      className="bg-white/10 border border-white/10 rounded-3xl p-5"
+                    >
+                      {editingMemoryId === memory.id ? (
+                        <div className="space-y-3">
+                          <input
+                            value={editKey}
+                            onChange={(e) => setEditKey(e.target.value)}
+                            className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3 outline-none"
+                          />
+
+                          <textarea
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3 outline-none min-h-28"
+                          />
+
+                          <input
+                            type="number"
+                            min={1}
+                            max={5}
+                            value={editImportance}
+                            onChange={(e) =>
+                              setEditImportance(Number(e.target.value))
+                            }
+                            className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3 outline-none"
+                          />
+
+                          <div className="flex gap-3">
+                            <button
+                              onClick={saveEditedMemory}
+                              className="bg-cyan-400 text-black rounded-2xl px-4 py-3 font-semibold"
+                            >
+                              Save
+                            </button>
+
+                            <button
+                              onClick={() => setEditingMemoryId(null)}
+                              className="bg-white/10 rounded-2xl px-4 py-3"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-xs text-cyan-300">
+                            {memory.key} · importance {memory.importance}
+                          </p>
+
+                          <p className="text-white/80 mt-2">{memory.value}</p>
+
+                          <div className="flex gap-3 mt-4">
+                            <button
+                              onClick={() => startEditMemory(memory)}
+                              className="bg-white/10 hover:bg-white/15 rounded-2xl px-4 py-2 text-sm"
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              onClick={() => removeMemory(memory.id)}
+                              className="bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded-2xl px-4 py-2 text-sm"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))
                 )}
               </div>
             </div>
-          ))}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        <div className="border-t border-white/10 p-4 md:p-6 bg-white/[0.04] backdrop-blur-2xl">
-          <div className="flex gap-3">
-            <button
-              onClick={() => alert("Voice feature дараа энд орно 🎙")}
-              className="hidden sm:block bg-white/10 hover:bg-white/15 transition rounded-2xl px-5 py-4"
-            >
-              🎙
-            </button>
-
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSend();
-              }}
-              placeholder="Suuder-д юм бич..."
-              className="flex-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl px-5 py-4 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all min-w-0"
-            />
-
-            <button
-              onClick={handleSend}
-              disabled={loading}
-              className="bg-cyan-400 hover:bg-cyan-300 transition-all text-black rounded-2xl px-5 md:px-6 py-4 font-semibold disabled:opacity-50 shadow-lg shadow-cyan-500/20"
-            >
-              Send
-            </button>
           </div>
-        </div>
+        )}
+
+        {activePanel === "settings" && (
+          <div className="flex-1 overflow-y-auto p-4 md:p-8">
+            <div className="max-w-3xl mx-auto">
+              <h2 className="text-3xl font-bold">Settings</h2>
+              <p className="text-white/50 mt-2">
+                Suuder-ийн харилцах style-ийг тохируул.
+              </p>
+
+              <div className="mt-8 bg-white/10 border border-white/10 rounded-3xl p-6 space-y-5">
+                <div>
+                  <label className="text-sm text-white/60">AI style</label>
+                  <select
+                    value={settings.ai_style}
+                    onChange={(e) =>
+                      setSettings({ ...settings, ai_style: e.target.value })
+                    }
+                    className="mt-2 w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 outline-none"
+                  >
+                    <option value="calm">Calm</option>
+                    <option value="funny">Funny</option>
+                    <option value="motivational">Motivational</option>
+                    <option value="romantic">Romantic</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-sm text-white/60">
+                    Language style
+                  </label>
+                  <select
+                    value={settings.language_style}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        language_style: e.target.value,
+                      })
+                    }
+                    className="mt-2 w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 outline-none"
+                  >
+                    <option value="natural">Natural Mongolian</option>
+                    <option value="slang">Slang / bro style</option>
+                    <option value="formal">Formal</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-sm text-white/60">Theme</label>
+                  <select
+                    value={settings.theme}
+                    onChange={(e) =>
+                      setSettings({ ...settings, theme: e.target.value })
+                    }
+                    className="mt-2 w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 outline-none"
+                  >
+                    <option value="dark">Dark</option>
+                    <option value="soft">Soft</option>
+                    <option value="neon">Neon</option>
+                  </select>
+                </div>
+
+                <button
+                  onClick={saveSettings}
+                  className="bg-cyan-400 text-black rounded-2xl px-5 py-4 font-semibold"
+                >
+                  Save settings
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
     </main>
   );

@@ -19,8 +19,15 @@ from app.services.emotion_service import save_mood, get_latest_mood
 
 router = APIRouter()
 
+
 class ChatRequest(BaseModel):
     message: str
+
+
+class MemoryUpdate(BaseModel):
+    key: str
+    value: str
+    importance: int = 2
 
 
 @router.post("/")
@@ -32,7 +39,13 @@ def chat(
     try:
         user_id = str(current_user.id)
 
-        db.add(Message(user_id=user_id, role="user", content=request.message))
+        db.add(
+            Message(
+                user_id=user_id,
+                role="user",
+                content=request.message,
+            )
+        )
         db.commit()
 
         save_memory_if_needed(db, user_id, request.message)
@@ -43,13 +56,26 @@ def chat(
 
         reply = generate_reply(
             user_message=request.message,
-            memory_context=f"{memory_context}\nLatest detected mood: {mood_record.mood}",
+            memory_context=f"""
+{memory_context}
+
+Latest detected mood: {mood_record.mood}
+""",
         )
 
-        db.add(Message(user_id=user_id, role="assistant", content=reply))
+        db.add(
+            Message(
+                user_id=user_id,
+                role="assistant",
+                content=reply,
+            )
+        )
         db.commit()
 
-        return {"reply": reply, "mood": mood_record.mood}
+        return {
+            "reply": reply,
+            "mood": mood_record.mood,
+        }
 
     except Exception as e:
         print("CHAT ERROR:", e)
@@ -62,33 +88,59 @@ def chat_stream(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    user_id = str(current_user.id)
+    try:
+        user_id = str(current_user.id)
 
-    db.add(Message(user_id=user_id, role="user", content=request.message))
-    db.commit()
-
-    save_memory_if_needed(db, user_id, request.message)
-    mood_record = save_mood(db, user_id, request.message)
-
-    memories = get_user_memories(db, user_id)
-    memory_context = build_memory_context(memories)
-
-    final_text = ""
-
-    def generator():
-        nonlocal final_text
-
-        for chunk in stream_reply(
-            user_message=request.message,
-            memory_context=f"{memory_context}\nLatest detected mood: {mood_record.mood}",
-        ):
-            final_text += chunk
-            yield chunk
-
-        db.add(Message(user_id=user_id, role="assistant", content=final_text))
+        db.add(
+            Message(
+                user_id=user_id,
+                role="user",
+                content=request.message,
+            )
+        )
         db.commit()
 
-    return StreamingResponse(generator(), media_type="text/plain")
+        save_memory_if_needed(db, user_id, request.message)
+        mood_record = save_mood(db, user_id, request.message)
+
+        memories = get_user_memories(db, user_id)
+        memory_context = build_memory_context(memories)
+
+        final_text = ""
+
+        def generator():
+            nonlocal final_text
+
+            try:
+                for chunk in stream_reply(
+                    user_message=request.message,
+                    memory_context=f"""
+{memory_context}
+
+Latest detected mood: {mood_record.mood}
+""",
+                ):
+                    final_text += chunk
+                    yield chunk
+
+                db.add(
+                    Message(
+                        user_id=user_id,
+                        role="assistant",
+                        content=final_text,
+                    )
+                )
+                db.commit()
+
+            except Exception as e:
+                print("STREAM GENERATOR ERROR:", e)
+                yield "Уучлаарай 😭 Одоогоор хариу үүсгэхэд алдаа гарлаа."
+
+        return StreamingResponse(generator(), media_type="text/plain")
+
+    except Exception as e:
+        print("STREAM ERROR:", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/history")
@@ -141,16 +193,78 @@ def get_memories(
     ]
 
 
+@router.put("/memories/{memory_id}")
+def update_memory(
+    memory_id: int,
+    request: MemoryUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user_id = str(current_user.id)
+
+    memory = (
+        db.query(Memory)
+        .filter(Memory.id == memory_id, Memory.user_id == user_id)
+        .first()
+    )
+
+    if not memory:
+        raise HTTPException(status_code=404, detail="Memory not found")
+
+    memory.key = request.key
+    memory.value = request.value
+    memory.importance = request.importance
+
+    db.commit()
+    db.refresh(memory)
+
+    return {
+        "id": memory.id,
+        "key": memory.key,
+        "value": memory.value,
+        "importance": memory.importance,
+        "created_at": str(memory.created_at),
+    }
+
+
+@router.delete("/memories/{memory_id}")
+def delete_memory(
+    memory_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user_id = str(current_user.id)
+
+    memory = (
+        db.query(Memory)
+        .filter(Memory.id == memory_id, Memory.user_id == user_id)
+        .first()
+    )
+
+    if not memory:
+        raise HTTPException(status_code=404, detail="Memory not found")
+
+    db.delete(memory)
+    db.commit()
+
+    return {"message": "Memory deleted"}
+
+
 @router.get("/mood")
 def get_mood(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     user_id = str(current_user.id)
+
     latest = get_latest_mood(db, user_id)
 
     if not latest:
-        return {"mood": "neutral", "source_message": "", "created_at": ""}
+        return {
+            "mood": "neutral",
+            "source_message": "",
+            "created_at": "",
+        }
 
     return {
         "mood": latest.mood,

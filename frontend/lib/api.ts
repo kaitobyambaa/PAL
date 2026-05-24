@@ -100,3 +100,52 @@ export async function getMood() {
   if (!res.ok) throw new Error("Failed to get mood");
   return res.json();
 }
+export async function updateMemory(
+  id: number,
+  key: string,
+  value: string,
+  importance: number
+) {
+  const res = await fetch(`${API_URL}/api/chat/memories/${id}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify({ key, value, importance }),
+  });
+
+  if (!res.ok) throw new Error("Failed to update memory");
+  return res.json();
+}
+
+export async function deleteMemory(id: number) {
+  const res = await fetch(`${API_URL}/api/chat/memories/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+
+  if (!res.ok) throw new Error("Failed to delete memory");
+  return res.json();
+}
+
+export async function getSettings() {
+  const res = await fetch(`${API_URL}/api/settings/`, {
+    headers: authHeaders(),
+  });
+
+  if (!res.ok) throw new Error("Failed to get settings");
+  return res.json();
+}
+
+export async function updateSettings(
+  ai_style: string,
+  language_style: string,
+  theme: string
+) {
+  const res = await fetch(`${API_URL}/api/settings/`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify({ ai_style, language_style, theme }),
+  });
+
+  if (!res.ok) throw new Error("Failed to update settings");
+  return res.json();
+}
